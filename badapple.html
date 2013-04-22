@@ -1,0 +1,283 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+    <title>《Bad Apple》 JavaScript Edition by Jim, licstar</title>
+    <style type="text/css">
+        body { background: #fff; margin: 0; padding: 0; }
+        div#wrap { float: none; width: 480px; height: 360px; border: 3px solid #09f; margin: 50px auto; }
+        div#canvasContainer { margin: 10px auto; }
+        canvas { border: 3px solid #09f; }
+    </style>
+</head>
+<body>
+    <div id="container">
+    	<h3>Canvas 'movie' &lt;bad apple&gt;</h3>
+        <p>URL:<input type="text" value="movie480c.js" id="txtUrl" />
+            <input type="button" value="(step 1) load movie (huge file! 38MB)" id="ldmv" />
+            <input type="button" value="(step 2) create canvas" disabled="disabled" id="crt" />
+            <label>
+                <input type="checkbox" id="fullspeed" />full speed (no sync with music, for speed testing)</label>
+            <input type="button" value="(step 3) start" disabled="disabled" id="start" />
+            <input type="button" value="stop" disabled="disabled" id="stop" />
+        </p>
+        <p>Best browser to view - Google Chrome. (IE9 can play, but cannot see the audio controller). click <a href='detail.html'>here</a> to see tech details.</p>
+        <p>FPS:<label id="fps"></label></p>
+        <div id="console">
+        </div>
+        <audio id="music" controls="controls" style="width:100%; height:2em;">
+	      	<source src="./bad_apple.ogg" type="audio/ogg" />
+	      	<source src="./bad_apple.mp3" type="audio/mp3" />
+	    	</audio>
+    </div>
+</body>
+
+<script type="text/javascript">
+    var $ = function(id) {
+        return document.getElementById(id);
+    };
+    var addEvent = function(elem, evt, func) {
+        if (elem.addEventListener) {
+            elem.addEventListener(evt, func, false);
+        } else {
+            elem.attachEvent('on' + evt, func);
+        }
+    };
+    var crtNode = function(tag, html) {
+        var elem = document.createElement(tag);
+        if (html) elem.innerHTML = html;
+        return elem;
+    };
+    var addNode = function(parent, child) {
+        parent.appendChild(child);
+    };
+    var loadScript = function(src, onload) {
+        var tag = crtNode('script');
+        tag.type = 'text/javascript';
+        tag.src = src;
+        if (document.body.attachEvent) { // IE only
+            tag.onreadystatechange = function() {
+                if (tag.readyState != 'complete') return;
+                onload.call();
+            }
+        } else {
+            tag.onload = onload;
+        }
+        addNode(document.getElementsByTagName('head')[0], tag);
+    };
+
+    var init = function() {
+        addEvent($('ldmv'), 'click', function() {
+            var movieUrl = $('txtUrl').value;
+            $('txtUrl').setAttribute('disabled', 'disabled');
+            $('ldmv').setAttribute('value', 'loading, plz waaaaaaait');
+            loadScript(movieUrl, loadMovie);
+        });
+    };
+
+    var colorTable = [];
+    for (var i = 0; i < 64; ++i) {
+        var c = i * 4;
+        colorTable[i + 40] = c;
+    }
+    colorTable[126] = colorTable[92];
+    var movie = [];
+
+    var loadMovie = function() {
+        $('ldmv').setAttribute('disabled', 'disabled');
+        $('ldmv').setAttribute('value', 'movie loaded');
+        var start = $('start'), stop = $('stop'), crt = $('crt'), container = $('container');
+
+        crt.removeAttribute('disabled');
+        var pic;
+        var loaded = crtNode('p', totalFrameCount + ' frames loaded!');
+        addNode(container, loaded);
+
+        addEvent(crt, 'click', function() { // Create Canvas
+            var cont = document.createElement('div');
+            cont.id = 'canvasContainer';
+            cont.style.width = w + 'px';
+            cont.style.height = h + 'px';
+            cont.innerHTML = '<canvas id="canvas">Your browser does not support canvas.</canvas>';
+            addNode(container, cont);
+
+            pic = $("canvas");
+            pic.width = w;
+            pic.height = h;
+            pic = pic.getContext('2d');
+            crt.setAttribute('disabled', 'disabled');
+            start.removeAttribute('disabled');
+            stop.removeAttribute('disabled');
+        });
+
+        var fps = $('fps');
+        var playing = false;
+        var frames = 0;
+        var begin;
+        var last;
+        var frameTime = 1000 / 15.0;
+        var droppedFrames = 0;
+        var lastFrame = 0;
+
+        var play = function() { // Frame Loop
+            if (frames > totalFrameCount) {
+                playing = false;
+                return;
+            }
+            ++frames;
+            var img = pic.getImageData(0, 0, w, h), buf = img.data, f = 0;
+            var offset = 0;
+            movie = loadFrame();
+            for (var i = 0; i < h; ++i) {
+                for (var j = 0; j < w; ++j) {
+                    var c = movie.charCodeAt(offset);
+                    buf[f] = buf[f + 1] = buf[f + 2] = colorTable[c];
+                    f += 4;
+                    offset++;
+                }
+            }
+            pic.putImageData(img, 0, 0);
+            delete img;
+            delete buf;
+            delete movie;
+
+            var now = new Date();
+            var frameElapsed = now - last;
+            var totalTime = now - begin;
+            var expectedTime = frames * frameTime;
+            var timeout = expectedTime - totalTime;
+            lastFrame = frames;
+
+            if ($('fullspeed').checked)
+                timeout = 0;
+            while (timeout < 0) {
+                timeout += frameTime;
+                loadFrame();
+                frames++;
+                droppedFrames++;
+            }
+
+            if (frameElapsed >= 1000) {
+                fps.innerHTML = ((frames - droppedFrames) * 1000.0 / totalTime + ' / frames:' + frames + ' / dropped:' + droppedFrames + ' / time:' + (totalTime) / 1000 + 's');
+                last = now;
+            }
+
+            if (playing) {
+                setTimeout(play, timeout);
+            }
+        };
+        addEvent(start, 'click', function() { // Click to play
+            if (playing) return;
+            $('fullspeed').setAttribute('disabled', 'disabled');
+            initMovie();
+            playing = true;
+            frames = 0;
+            droppedFrames = 0;
+            begin = last = new Date();
+            pic.fillRect(0, 0, w, h);
+            $('music').play();
+            setTimeout(play, 0);
+        });
+
+        addEvent(stop, 'click', function() { // Click to stop
+            playing = false;
+        });
+    };
+
+    window.onload = init;
+
+
+    var frameLength; //一帧的长度
+
+    //加载一帧
+    var leftString = ''; //剩余的字符串，给下一帧用
+    var loadFrame = function() {
+        var ret = leftString; //结果字符串，初始化为上次剩下的字符串
+        while (ret.length < frameLength)
+            ret += loadString();
+        leftString = ret.substr(frameLength);
+        return ret.substr(0, frameLength);
+    };
+
+    var index = 0;  //解压前字符串的下标
+    var nextTwoChar = function() { //返回下两个字符解压出来的数字
+        var a = (x[index] == '~' ? '\\' : x[index]).charCodeAt(0) - 35;
+        var b = (x[index + 1] == '~' ? '\\' : x[index + 1]).charCodeAt(0) - 35;
+        index += 2;
+        return a * 91 + b;
+    };
+
+    var leftBin = 0, leftBits = 0; //剩余的二进制串，以及这个串一共有几位
+    var nextInt = function(len) {  //获取下一个len位长的整数
+        var rev = 0; //已有的位数
+        var ret = 0;
+        while (rev < len) {
+            if (leftBits + rev > len) { //不能把剩余的全接进来
+                var thisRev = len - rev; //这次需要接收的位数
+                ret |= (leftBin & ((1 << thisRev) - 1)) << rev;
+                leftBin >>= thisRev;
+                leftBits -= thisRev;
+                rev = len;
+            } else { //可以把剩余的全接进来
+                ret |= leftBin << rev;
+                rev += leftBits;
+                leftBin = nextTwoChar();
+                leftBits = 13;
+            }
+        }
+        return ret;
+    };
+
+    var keys = []; //LZW的字典
+    var l = 7, word = ''; //LZW的相关变量
+    var loadString = function() { //解压出一个字符串
+        var t = nextInt(l);
+        var entry = '';
+        if (t < keys.length) {
+            entry = keys[t];
+            if (entry == "!C") {
+                initDict();
+                l = 7;
+                t = nextInt(l);
+                word = keys[t];
+                return word;
+            }
+        } else if (t == keys.length) {
+            entry = word + word[0];
+        } else {
+            alert('Error');
+            return 'Error';
+        }
+        keys.push(word + entry[0]);
+        if ((keys.length & (keys.length + 1)) == 0)
+            l++;
+        word = entry;
+        return entry;
+    };
+
+    var initDict = function() { //初始化字典
+        keys = [];
+        for (var i = 40; i < 40 + 64; i++) {
+            var s = String.fromCharCode(i);
+            if (s == '\\') s = '~';
+            keys.push(s);
+        }
+        keys.push('!C');
+    };
+
+    var initMovie = function() {
+        l = 7;
+        frameLength = w * h;
+        index = 0;
+        leftBin = 0;
+        leftBits = 0;
+
+        initDict();
+
+        word = keys[nextInt(l)] || '';
+        leftString = word;
+    };
+
+</script>
+
+</html>
