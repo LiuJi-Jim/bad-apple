@@ -58,3 +58,6 @@ BASE64可以，但是体积浪费比较多，这里用了一种使用了多达91
 IE9下看不到audio的控制条，不过声音倒是真的有
 
 最早是用span做像素点的，只能播放120*90分辨率，性能惨不忍睹，无视吧。
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/LiuJi-Jim/bad-apple/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
